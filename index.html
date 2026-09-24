@@ -171,6 +171,19 @@ label.f textarea{resize:vertical;min-height:54px}
 :is(#opApp,#fcyApp,#declApp) .steps div.now{border-color:var(--add);color:var(--ink);font-weight:600}
 :is(#opApp,#fcyApp,#declApp) .err{color:var(--red);font-size:13px;margin:6px 0 0}
 :is(#opApp,#fcyApp,#declApp) .note{font-size:12.5px;color:var(--muted);margin:6px 0 0}
+
+:is(#opApp,#fcyApp,#declApp) .pcard{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:0 0 10px;background:var(--bg)}
+:is(#opApp,#fcyApp,#declApp) .pc-top{display:grid;grid-template-columns:28px minmax(0,2.2fr) minmax(0,1fr) minmax(0,1fr) auto;gap:10px;align-items:end}
+:is(#opApp,#fcyApp,#declApp) .pc-n{width:24px;height:24px;border-radius:50%;background:var(--accent);color:#fff;font-size:12px;font-weight:600;display:grid;place-items:center;margin-bottom:6px}
+:is(#opApp,#fcyApp,#declApp) .pcard label.f select,:is(#opApp,#fcyApp,#declApp) .pcard label.f input{background:var(--panel)}
+:is(#opApp,#fcyApp,#declApp) .pc-x{margin-bottom:3px}
+:is(#opApp,#fcyApp,#declApp) .pc-desc{font-size:12.5px;color:var(--muted);margin:6px 0 0 38px}
+:is(#opApp,#fcyApp,#declApp) .pc-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:8px 0 0 38px}
+:is(#opApp,#fcyApp,#declApp) .pc-stats div{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 10px}
+:is(#opApp,#fcyApp,#declApp) .pc-stats span{display:block;font-size:11.5px;color:var(--muted)}
+:is(#opApp,#fcyApp,#declApp) .pc-stats b{font-size:14px;font-weight:600;font-variant-numeric:tabular-nums}
+:is(#opApp,#fcyApp,#declApp) .pc-warn{font-size:12.5px;color:var(--amber);margin:6px 0 0 38px}
+@media (max-width:700px){:is(#opApp,#fcyApp,#declApp) .pc-top{grid-template-columns:28px 1fr 1fr}:is(#opApp,#fcyApp,#declApp) .pc-n{grid-row:1/4;align-self:start;margin-top:22px}:is(#opApp,#fcyApp,#declApp) .pc-sel{grid-column:2/-1}:is(#opApp,#fcyApp,#declApp) .pc-num{grid-column:auto}:is(#opApp,#fcyApp,#declApp) .pc-x{grid-column:2/-1;justify-self:start}:is(#opApp,#fcyApp,#declApp) .pc-stats{grid-template-columns:1fr 1fr;margin-left:0}:is(#opApp,#fcyApp,#declApp) .pc-desc,:is(#opApp,#fcyApp,#declApp) .pc-warn{margin-left:0}}
 </style>
 </head>
 <body>
@@ -1063,11 +1076,15 @@ function drawOrder(){
   edit.containers=contList(edit);
   var t=calc(edit),pl=Object.keys(products).map(function(k){return products[k]}).sort(function(a,b){return (a.name||"").localeCompare(b.name||"")});
   var steps='<div class="steps">'+STAGES.map(function(s,i){return '<div class="'+(i<t.stageIdx?"done":i===t.stageIdx?"now":"")+'">'+s[1]+'</div>'}).join("")+'</div>';
-  var lines=edit.lines.map(function(l,i){var r=lineCalc(l);return '<div class="line"><label class="f">Product<select data-l="'+i+'" data-lk="productId"><option value="">Choose product…</option>'+pl.map(function(p){return '<option value="'+esc(p.id)+'"'+(p.id===l.productId?" selected":"")+'>'+esc(p.name)+'</option>'}).join("")+'</select>'+(r.p.piDesc?'<span class="sub">Proforma: '+esc(r.p.piDesc)+'</span>':'')+'</label>'+
-    '<label class="f">Containers<input type="number" min="0" data-l="'+i+'" data-lk="containers" value="'+esc(l.containers)+'"></label>'+
-    '<label class="f">Qty per container<input type="number" min="0" data-l="'+i+'" data-lk="qtyPerCont" value="'+esc(l.qtyPerCont)+'" placeholder="'+(num(r.p.qtyPerCont)?nf(num(r.p.qtyPerCont)):"")+'"></label>'+
-    '<div class="v"><span class="sub">Total qty / PKG</span><br>'+nf(r.qty)+' '+esc(r.p.unit||"")+' / '+nf(r.pkg)+'</div><div class="v"><span class="sub">Gross kg</span><br>'+nf(r.kg)+'</div>'+
-    '<button type="button" class="btn mini" data-dell="'+i+'" aria-label="Remove product line">Remove</button></div>'}).join("");
+  var lines=edit.lines.map(function(l,i){var r=lineCalc(l),u=esc(r.p.unit||"");return '<div class="pcard">'+
+    '<div class="pc-top"><span class="pc-n">'+(i+1)+'</span><label class="f pc-sel">Product<select data-l="'+i+'" data-lk="productId"><option value="">Choose product…</option>'+pl.map(function(p){return '<option value="'+esc(p.id)+'"'+(p.id===l.productId?" selected":"")+'>'+esc(p.name)+'</option>'}).join("")+'</select></label>'+
+    '<label class="f pc-num">Containers<input type="number" min="0" data-l="'+i+'" data-lk="containers" value="'+esc(l.containers)+'"></label>'+
+    '<label class="f pc-num">Qty per container<input type="number" min="0" data-l="'+i+'" data-lk="qtyPerCont" value="'+esc(l.qtyPerCont)+'" placeholder="'+(num(r.p.qtyPerCont)?nf(num(r.p.qtyPerCont)):"")+'"></label>'+
+    '<button type="button" class="btn mini pc-x" data-dell="'+i+'" aria-label="Remove product '+(i+1)+'">Remove</button></div>'+
+    (r.p.piDesc?'<div class="pc-desc">On proforma: '+esc(r.p.piDesc)+'</div>':'')+
+    (l.productId?'<div class="pc-stats"><div><span>Total qty</span><b>'+nf(r.qty)+' '+u+'</b></div><div><span>Packages</span><b>'+nf(r.pkg)+'</b></div><div><span>Net kg</span><b>'+nf(r.net)+'</b></div><div><span>Gross kg</span><b>'+nf(r.kg)+'</b></div></div>'+
+      (r.missing&&r.c?'<div class="pc-warn">This product has no per-container '+[!r.qpc?"quantity":"",!num(r.p.pkgPerCont)?"packages":"",!num(r.p.grossPerCont)?"gross weight":""].filter(Boolean).join(", ")+'. Set it in Products.</div>':''):'')+
+    '</div>'}).join("");
   var cocWarn=edit.loadedDate&&edit.cocStatus!=="Issued";
   var h='<div class="dlg-h"><h2 id="dlgTitle">'+(edit.id?"Order "+esc(edit.orderNo||""):(edit.type==="additional"?"New additional order":"New planned order"))+'</h2>'+chip(t.stage)+(t.delayed?' <span class="chip c-red">Delayed / at risk</span>':'')+'<button type="button" class="btn mini" id="xClose" aria-label="Close">Close</button></div><div class="dlg-b">'+steps+
   (t.alerts.length?'<div style="margin:-4px 0 12px">'+t.alerts.map(function(a){return '<div class="sub" style="color:var(--'+a[0]+')">&#9679; '+esc(a[1])+'</div>'}).join("")+'</div>':'')+
@@ -1107,7 +1124,7 @@ function contFieldset(t){
   '<span class="grow"></span><button type="button" class="btn mini" id="newPermit">New bank permit</button><button type="button" class="btn mini" id="newDecl">New declaration</button></div>'+
   '<div class="tw"><table class="t"><thead><tr><th>#</th><th>Product</th><th>Container no</th><th>Proforma</th><th>Bank permit</th><th>Declaration</th><th></th></tr></thead><tbody>'+
   cs.map(function(c,i){var k=contCheck(c),p=products[c.productId]||{};
-    return '<tr><td>'+(i+1)+'</td><td>'+esc(p.name||"")+'</td><td><input data-c="'+i+'" data-ck="containerNo" value="'+esc(c.containerNo)+'" placeholder="e.g. MSKU1234567" style="border:1px solid var(--line);background:var(--bg);border-radius:5px;padding:5px 7px;width:140px"></td>'+
+    return '<tr><td>'+(i+1)+'</td><td style="min-width:150px">'+esc(p.name||"")+'</td><td><input data-c="'+i+'" data-ck="containerNo" value="'+esc(c.containerNo)+'" placeholder="e.g. MSKU1234567" style="border:1px solid var(--line);background:var(--bg);border-radius:5px;padding:5px 7px;width:140px"></td>'+
     '<td><select data-c="'+i+'" data-ck="piId" style="border:1px solid '+(k.noPi?"var(--red)":"var(--line)")+';background:var(--bg);border-radius:5px;padding:5px 7px;max-width:170px">'+sOpts(c.piId)+'</select></td>'+
     '<td><select data-c="'+i+'" data-ck="permitId" style="border:1px solid '+(k.noPermit?"var(--red)":"var(--line)")+';background:var(--bg);border-radius:5px;padding:5px 7px;max-width:220px">'+pOpts(c.permitId)+'</select></td>'+
     '<td><select data-c="'+i+'" data-ck="declId" style="border:1px solid '+(k.noDecl?"var(--red)":"var(--line)")+';background:var(--bg);border-radius:5px;padding:5px 7px;max-width:220px">'+dOpts(c.permitId,c.declId)+'</select></td>'+
