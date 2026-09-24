@@ -234,6 +234,7 @@ label.f textarea{resize:vertical;min-height:54px}
   <button class="btn" id="newBtn">New shipment</button>
   <button class="btn" id="dupBtn" title="Keep parties and terms, clear numbers, items and containers">New from this</button>
   <button class="btn primary" id="saveBtn">Save shipment</button>
+  <button class="btn" id="delShip" style="color:var(--danger);border-color:var(--danger)">Delete</button>
   <span class="grow"></span>
   <span class="status" id="status" role="status"></span>
   <button class="btn" id="dlOne">Download PDF</button>
@@ -748,6 +749,18 @@ function newShipment(keep){
   setStatus(keep?"New shipment started from the current one":"New shipment started");
 }
 document.getElementById("saveBtn").onclick=saveShipment;
+document.getElementById("delShip").onclick=async function(){
+  var id=currentId;
+  if(!id||!shipments[id]){setStatus("This proforma is not saved, so there is nothing to delete. Use New shipment to clear the form.","err");return}
+  if(!db){setStatus("Saving is not available here","err");return}
+  if(!window.__armOnce(this))return;
+  try{
+    for(var oid in planOrders){var o=planOrders[oid];if((o.containers||[]).some(function(c){return c.piId===id})){var b=JSON.parse(JSON.stringify(o));delete b.id;b.containers=b.containers.map(function(c){if(c.piId===id)c.piId="";return c});await db.doc("orders/"+oid).set(b)}}
+    try{await db.doc("fcy/"+id).delete()}catch(x){}
+    var no=shipments[id].piNo||id;await db.doc("shipments/"+id).delete();
+    newShipment(false);setStatus("Proforma "+no+" deleted and unlinked from its containers","ok");
+  }catch(x){setStatus("Could not delete. Try again.","err")}
+};
 document.getElementById("newBtn").onclick=function(){newShipment(false)};
 document.getElementById("dupBtn").onclick=function(){newShipment(true)};
 document.getElementById("openSel").onchange=function(){
@@ -939,11 +952,11 @@ function plan(){
     '<label class="chk"><input type="checkbox" id="fDelayed"'+(filt.delayed?" checked":"")+'> Delayed or at risk only</label>'+
     '<input type="search" id="fQ" placeholder="Search order, product, PI, COC" value="'+esc(filt.q)+'" style="min-width:220px"></div>';
   if(!f.length)return h+'<div class="card"><p class="empty">'+(cs.length?"No orders match these filters.":"No orders yet. Click \u201cAdd planned order\u201d to start your plan.")+'</p></div>';
-  h+='<div class="card tw"><table class="t"><thead><tr><th>Order</th><th>Products (proforma description)</th><th class="n">Cont.</th><th class="n">Qty</th><th class="n">PKG</th><th class="n">Gross kg</th><th>Booking</th><th>COC</th><th>Loading</th><th>ETA Djibouti</th><th>ETA Ethiopia</th><th>Status</th></tr></thead><tbody>';
+  h+='<div class="card tw"><table class="t"><thead><tr><th>Order</th><th>Products (proforma description)</th><th class="n">Cont.</th><th class="n">Qty</th><th class="n">PKG</th><th class="n">Gross kg</th><th>Booking</th><th>COC</th><th>Loading</th><th>ETA Djibouti</th><th>ETA Ethiopia</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
   var cur=null,sum=null;
-  function flush(){if(sum)h+='<tr><td colspan="2" class="sub">Total '+esc(ml(cur))+'</td><td class="n"><b>'+nf(sum.c)+'</b></td><td class="n">'+nf(sum.q)+'</td><td class="n">'+nf(sum.p)+'</td><td class="n">'+nf(sum.k)+'</td><td colspan="6"></td></tr>'}
+  function flush(){if(sum)h+='<tr><td colspan="2" class="sub">Total '+esc(ml(cur))+'</td><td class="n"><b>'+nf(sum.c)+'</b></td><td class="n">'+nf(sum.q)+'</td><td class="n">'+nf(sum.p)+'</td><td class="n">'+nf(sum.k)+'</td><td colspan="7"></td></tr>'}
   f.forEach(function(x){var o=x[0],t=x[1];
-    if((o.month||"")!==cur){flush();cur=o.month||"";sum={c:0,q:0,p:0,k:0};h+='<tr class="month"><td colspan="12">'+esc(ml(cur))+'</td></tr>'}
+    if((o.month||"")!==cur){flush();cur=o.month||"";sum={c:0,q:0,p:0,k:0};h+='<tr class="month"><td colspan="13">'+esc(ml(cur))+'</td></tr>'}
     sum.c+=t.cont;sum.q+=t.qty;sum.p+=t.pkg;sum.k+=t.kg;
     h+='<tr class="click" data-open="'+esc(o.id)+'"><td><b>'+esc(o.orderNo||"—")+'</b>'+(o.type==="additional"?'<br><span class="chip c-amber">Additional</span>':'')+(t.pis.length?'<div class="sub">PI '+t.pis.map(esc).join(", ")+'</div>':(t.cont?'<div class="sub" style="color:var(--red)">No proforma</div>':''))+'</td>'+
     '<td>'+(t.lines.length?t.lines.map(function(r){return esc(r.p.name||"Unknown")+' × '+nf(r.c)+(r.p.piDesc?'<div class="sub">'+esc(r.p.piDesc)+'</div>':'')}).join(""):'<span class="sub">—</span>')+'</td>'+
@@ -951,10 +964,21 @@ function plan(){
     '<td>'+(o.booked?'<span class="chip c-blue">Booked</span>'+(o.bookingRef?'<div class="sub">'+esc(o.bookingRef)+'</div>':''):'<span class="chip c-gray">Not booked</span>')+'</td>'+
     '<td>'+(o.cocStatus==="Issued"?'<span class="chip c-purple">Issued</span>':o.cocStatus==="Applied"?'<span class="chip c-amber">Applied</span>':'<span class="chip c-gray">Not started</span>')+(o.cocNo?'<div class="sub">'+esc(o.cocNo)+'</div>':'')+'</td>'+
     '<td>'+dateCell(o.loadedDate,o.planLoad)+'</td><td>'+dateCell(o.ataDjb,t.etaDjb)+'</td><td>'+dateCell(o.ataEth,t.etaEth)+'</td>'+
-    '<td>'+chip(t.stage)+(t.delayed?'<br><span class="chip c-red" style="margin-top:3px">'+(t.delay?t.delay+"d late":"At risk")+'</span>':'')+(t.lateArrived?'<div class="sub">arrived '+t.lateArrived+'d late</div>':'')+'</td></tr>';
+    '<td>'+chip(t.stage)+(t.delayed?'<br><span class="chip c-red" style="margin-top:3px">'+(t.delay?t.delay+"d late":"At risk")+'</span>':'')+(t.lateArrived?'<div class="sub">arrived '+t.lateArrived+'d late</div>':'')+'</td>'+acts("order",o.id)+'</tr>';
   });
   flush();
   return h+'</tbody></table></div>';
+}
+function acts(kind,id){return '<td style="white-space:nowrap"><button type="button" class="btn mini" data-act="edit" data-kind="'+kind+'" data-id="'+esc(id)+'">Edit</button> <button type="button" class="btn mini warn" data-act="del" data-kind="'+kind+'" data-id="'+esc(id)+'">Delete</button></td>'}
+async function unlinkDecl(id){for(var oid in orders){var o=orders[oid];if((o.containers||[]).some(function(c){return c.declId===id})){var b=JSON.parse(JSON.stringify(o));delete b.id;b.containers=b.containers.map(function(c){if(c.declId===id)c.declId="";return c});await db.doc("orders/"+oid).set(b)}}}
+async function rowDelete(kind,id){
+  if(!db){setStatus("Saving is not available in this view","err");return}
+  try{
+    if(kind==="order"){await db.doc("orders/"+id).delete();setStatus("Order "+((orders[id]||{}).orderNo||"")+" deleted","ok")}
+    else if(kind==="product"){if(orderList().some(function(o){return (o.lines||[]).some(function(l){return l.productId===id})})){setStatus("This product is used in orders. Remove it from those orders first.","err");return}await db.doc("products/"+id).delete();setStatus("Product deleted","ok")}
+    else if(kind==="permit"){var n=linkedConts("permitId",id),nd=Object.keys(decls).filter(function(k){return decls[k].permitId===id}).length;if(n||nd){setStatus("This bank permit is linked to "+n+" container(s) and "+nd+" declaration(s). Unlink them first.","err");return}await db.doc("permits/"+id).delete();setStatus("Bank permit deleted","ok")}
+    else if(kind==="decl"){await unlinkDecl(id);await db.doc("declarations/"+id).delete();setStatus("Declaration deleted and unlinked from its containers","ok")}
+  }catch(x){setStatus("Could not delete. Try again.","err")}
 }
 function pmLabel(pm){return pm?esc(pm.permitNo)+(pm.bank?'<div class="sub">'+esc(pm.bank)+'</div>':''):'<span class="chip c-red">Missing</span>'}
 function dcChip(dc){if(!dc)return '<span class="chip c-red">Missing</span>';var d=DSTAT.filter(function(x){return x[0]===dc.status})[0]||DSTAT[0];return esc(dc.declNo)+' <span class="chip '+d[1]+'">'+esc(dc.status||"Draft")+'</span>'}
@@ -978,19 +1002,19 @@ function permView(){
   var pl=Object.keys(permits).map(function(k){return permits[k]}).sort(function(a,b){return (b.date||"").localeCompare(a.date||"")});
   var dl=Object.keys(decls).map(function(k){return decls[k]}).sort(function(a,b){return (b.date||"").localeCompare(a.date||"")});
   var h='<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px"><h2 style="margin:0">Bank permits</h2><button class="btn primary mini" id="addPermit">Add bank permit</button></div>';
-  h+=pl.length?'<div class="tw"><table class="t"><thead><tr><th>Permit no</th><th>Bank</th><th>Date</th><th>Expiry</th><th class="n">Amount</th><th>Proforma</th><th class="n">Containers</th><th class="n">Declarations</th></tr></thead><tbody>'+
-    pl.map(function(p){var nc=linkedConts("permitId",p.id),ndc=dl.filter(function(d){return d.permitId===p.id}).length,exp=p.expiry&&today()>p.expiry;return '<tr class="click" data-permit="'+esc(p.id)+'"><td><b>'+esc(p.permitNo)+'</b></td><td>'+esc(p.bank||"")+'</td><td>'+fd(p.date)+'</td><td>'+(p.expiry?fd(p.expiry)+(exp?' <span class="chip c-red">Expired</span>':''):'')+'</td><td class="n">'+(num(p.amount)?esc(p.currency||"")+' '+nf(num(p.amount)):'')+'</td><td>'+esc(p.piNo||"")+'</td><td class="n">'+nc+'</td><td class="n">'+ndc+'</td></tr>'}).join("")+'</tbody></table></div>':'<p class="empty">No bank permits yet.</p>';
+  h+=pl.length?'<div class="tw"><table class="t"><thead><tr><th>Permit no</th><th>Bank</th><th>Date</th><th>Expiry</th><th class="n">Amount</th><th>Proforma</th><th class="n">Containers</th><th class="n">Declarations</th><th>Actions</th></tr></thead><tbody>'+
+    pl.map(function(p){var nc=linkedConts("permitId",p.id),ndc=dl.filter(function(d){return d.permitId===p.id}).length,exp=p.expiry&&today()>p.expiry;return '<tr class="click" data-permit="'+esc(p.id)+'"><td><b>'+esc(p.permitNo)+'</b></td><td>'+esc(p.bank||"")+'</td><td>'+fd(p.date)+'</td><td>'+(p.expiry?fd(p.expiry)+(exp?' <span class="chip c-red">Expired</span>':''):'')+'</td><td class="n">'+(num(p.amount)?esc(p.currency||"")+' '+nf(num(p.amount)):'')+'</td><td>'+esc(p.piNo||"")+'</td><td class="n">'+nc+'</td><td class="n">'+ndc+'</td>'+acts("permit",p.id)+'</tr>'}).join("")+'</tbody></table></div>':'<p class="empty">No bank permits yet.</p>';
   h+='</div><div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px"><h2 style="margin:0">Customs declarations</h2><button class="btn primary mini" id="addDecl">Add declaration</button></div>';
-  h+=dl.length?'<div class="tw"><table class="t"><thead><tr><th>Declaration no</th><th>Date</th><th>Bank permit</th><th>Status</th><th class="n">Containers</th><th>Notes</th></tr></thead><tbody>'+
-    dl.map(function(d){var pm=permits[d.permitId];return '<tr class="click" data-decl="'+esc(d.id)+'"><td><b>'+esc(d.declNo)+'</b></td><td>'+fd(d.date)+'</td><td>'+(pm?esc(pm.permitNo):'<span class="chip c-amber">No permit linked</span>')+'</td><td>'+dcChip({declNo:"",status:d.status}).trim()+'</td><td class="n">'+linkedConts("declId",d.id)+'</td><td class="sub">'+esc(d.notes||"")+'</td></tr>'}).join("")+'</tbody></table></div>':'<p class="empty">No declarations yet.</p>';
+  h+=dl.length?'<div class="tw"><table class="t"><thead><tr><th>Declaration no</th><th>Date</th><th>Bank permit</th><th>Status</th><th class="n">Containers</th><th>Notes</th><th>Actions</th></tr></thead><tbody>'+
+    dl.map(function(d){var pm=permits[d.permitId];return '<tr class="click" data-decl="'+esc(d.id)+'"><td><b>'+esc(d.declNo)+'</b></td><td>'+fd(d.date)+'</td><td>'+(pm?esc(pm.permitNo):'<span class="chip c-amber">No permit linked</span>')+'</td><td>'+dcChip({declNo:"",status:d.status}).trim()+'</td><td class="n">'+linkedConts("declId",d.id)+'</td><td class="sub">'+esc(d.notes||"")+'</td>'+acts("decl",d.id)+'</tr>'}).join("")+'</tbody></table></div>':'<p class="empty">No declarations yet.</p>';
   return h+'</div>';
 }
 function prodView(){
   var list=Object.keys(products).map(function(k){return products[k]}).sort(function(a,b){return (a.name||"").localeCompare(b.name||"")});
   var h='<div class="filters"><button class="btn primary" id="addProd">Add product</button><span class="sub">Set how much goes in one container. Orders then calculate quantity, packages and weight automatically.</span></div>';
   if(!list.length)return h+'<div class="card"><p class="empty">No products yet.</p></div>';
-  return h+'<div class="card tw"><table class="t"><thead><tr><th>Product name</th><th>Written on proforma as</th><th>HS code</th><th>Origin</th><th>Container</th><th class="n">Unit price</th><th class="n">Qty / cont.</th><th class="n">PKG / cont.</th><th class="n">Net kg / cont.</th><th class="n">Gross kg / cont.</th></tr></thead><tbody>'+
-  list.map(function(p){var miss=!num(p.qtyPerCont)||!num(p.pkgPerCont)||!num(p.grossPerCont);return '<tr class="click" data-prod="'+esc(p.id)+'"><td><b>'+esc(p.name)+'</b>'+(miss?' <span class="chip c-amber">Needs numbers</span>':'')+'</td><td>'+esc(p.piDesc||"")+'</td><td>'+esc(p.hs||"")+'</td><td>'+esc(p.origin||"")+'</td><td>'+esc(p.contType||"")+'</td><td class="n">'+(num(p.unitPrice)?nf(num(p.unitPrice)):"—")+'</td><td class="n">'+(num(p.qtyPerCont)?nf(num(p.qtyPerCont))+" "+esc(p.unit||""):"—")+'</td><td class="n">'+(num(p.pkgPerCont)?nf(num(p.pkgPerCont)):"—")+'</td><td class="n">'+(num(p.netPerCont)?nf(num(p.netPerCont)):"—")+'</td><td class="n">'+(num(p.grossPerCont)?nf(num(p.grossPerCont)):"—")+'</td></tr>'}).join("")+'</tbody></table></div>';
+  return h+'<div class="card tw"><table class="t"><thead><tr><th>Product name</th><th>Written on proforma as</th><th>HS code</th><th>Origin</th><th>Container</th><th class="n">Unit price</th><th class="n">Qty / cont.</th><th class="n">PKG / cont.</th><th class="n">Net kg / cont.</th><th class="n">Gross kg / cont.</th><th>Actions</th></tr></thead><tbody>'+
+  list.map(function(p){var miss=!num(p.qtyPerCont)||!num(p.pkgPerCont)||!num(p.grossPerCont);return '<tr class="click" data-prod="'+esc(p.id)+'"><td><b>'+esc(p.name)+'</b>'+(miss?' <span class="chip c-amber">Needs numbers</span>':'')+'</td><td>'+esc(p.piDesc||"")+'</td><td>'+esc(p.hs||"")+'</td><td>'+esc(p.origin||"")+'</td><td>'+esc(p.contType||"")+'</td><td class="n">'+(num(p.unitPrice)?nf(num(p.unitPrice)):"—")+'</td><td class="n">'+(num(p.qtyPerCont)?nf(num(p.qtyPerCont))+" "+esc(p.unit||""):"—")+'</td><td class="n">'+(num(p.pkgPerCont)?nf(num(p.pkgPerCont)):"—")+'</td><td class="n">'+(num(p.netPerCont)?nf(num(p.netPerCont)):"—")+'</td><td class="n">'+(num(p.grossPerCont)?nf(num(p.grossPerCont)):"—")+'</td>'+acts("product",p.id)+'</tr>'}).join("")+'</tbody></table></div>';
 }
 function setView(){
   return '<div class="card" style="max-width:640px"><h2>Timing rules</h2><div class="g" style="grid-template-columns:1fr 1fr">'+
@@ -1010,6 +1034,9 @@ function bindView(){
   if((e=document.getElementById("fDelayed")))e.onchange=function(){filt.delayed=this.checked;render()};
   if((e=document.getElementById("fQ")))e.oninput=function(){filt.q=this.value;var pos=this.selectionStart;render();var n=document.getElementById("fQ");n.focus();n.setSelectionRange(pos,pos)};
   if((e=document.getElementById("addProd")))e.onclick=function(){openProduct(null)};
+  document.querySelectorAll("#opApp [data-act]").forEach(function(b){b.onclick=function(ev){ev.stopPropagation();var k=b.dataset.kind,id=b.dataset.id;
+    if(b.dataset.act==="edit"){if(k==="order")openOrder(id);else if(k==="product")openProduct(id);else if(k==="permit")openPermit(id);else if(k==="decl")openDecl(id);return}
+    if(window.__armOnce(b))rowDelete(k,id)}});
   document.querySelectorAll("[data-permit]").forEach(function(el){el.onclick=function(){openPermit(el.dataset.permit)}});
   document.querySelectorAll("[data-decl]").forEach(function(el){el.onclick=function(){openDecl(el.dataset.decl)}});
   if((e=document.getElementById("addPermit")))e.onclick=function(){openPermit(null)};
@@ -1093,6 +1120,10 @@ function containerBreakdown(t){
   t.lines.forEach(function(r){for(var i=0;i<r.c&&n<60;i++){n++;rows.push('<tr><td>'+n+'</td><td>'+esc(r.p.name||"—")+'</td><td>'+esc(r.p.piDesc||"")+'</td><td class="n">'+nf(r.qpc)+' '+esc(r.p.unit||"")+'</td><td class="n">'+nf(num(r.p.pkgPerCont))+'</td><td class="n">'+nf(num(r.p.netPerCont))+'</td><td class="n">'+nf(num(r.p.grossPerCont))+'</td></tr>')}});
   return '<details style="margin-top:10px"><summary style="cursor:pointer;font-size:13.5px">Show each container ('+nf(t.cont)+')</summary><div class="tw"><table class="t" style="margin-top:6px"><thead><tr><th>#</th><th>Product</th><th>Proforma description</th><th class="n">Qty</th><th class="n">PKG</th><th class="n">Net kg</th><th class="n">Gross kg</th></tr></thead><tbody>'+rows.join("")+'</tbody></table></div>'+(t.cont>60?'<p class="note">Showing the first 60 containers.</p>':'')+'</details>';
 }
+var mdown=false,pendingDraw=false;
+document.addEventListener("mousedown",function(){mdown=true},true);
+document.addEventListener("mouseup",function(){mdown=false;setTimeout(function(){if(!pendingDraw)return;pendingDraw=false;var dl=document.getElementById("dlg"),er=document.getElementById("formErr");if(!dl.open||!edit)return;if(er&&!er.hidden)return;drawOrder()},0)},true);
+function safeDraw(){if(mdown)pendingDraw=true;else drawOrder()}
 function bindOrder(){
   var f=document.getElementById("dlgForm");
   f.querySelectorAll("[data-o]").forEach(function(el){
@@ -1101,12 +1132,11 @@ function bindOrder(){
       if(el.dataset.o==="cocStatus"&&el.value==="Issued"&&!edit.cocDate)edit.cocDate=today();
       if(el.dataset.o==="booked"&&el.checked&&!edit.bookedDate)edit.bookedDate=today();
       if(ev==="change")drawOrder()});
-    if(ev==="input")el.addEventListener("change",drawOrder);
   });
   f.querySelectorAll("[data-l]").forEach(function(el){
     var ev=el.tagName==="SELECT"?"change":"input";
     el.addEventListener(ev,function(){edit.lines[+el.dataset.l][el.dataset.lk]=el.value;if(ev==="change")drawOrder()});
-    if(ev==="input")el.addEventListener("change",drawOrder);
+    if(ev==="input")el.addEventListener("change",safeDraw);
   });
   f.querySelectorAll("[data-c]").forEach(function(el){
     var ev=el.tagName==="SELECT"?"change":"input";
@@ -1124,13 +1154,13 @@ function bindOrder(){
   var e;
   if((e=document.getElementById("addLine")))e.onclick=function(){edit.lines.push({productId:"",containers:"",qtyPerCont:""});drawOrder()};
   document.getElementById("xClose").onclick=document.getElementById("cancelOrder").onclick=function(){document.getElementById("dlg").close()};
-  document.getElementById("saveOrder").onclick=saveOrder;
+  document.getElementById("saveOrder").onclick=function(){saveOrder()};
   if((e=document.getElementById("delOrder")))e.onclick=async function(){
-    if(!confirm("Delete order "+(edit.orderNo||"")+"? This cannot be undone."))return;
+    if(!window.__armOnce(this))return;
     try{await db.doc("orders/"+edit.id).delete();document.getElementById("dlg").close();setStatus("Order deleted","ok")}catch(er){setStatus("Could not delete","err")}
   };
 }
-async function saveOrder(silent){
+async function saveOrder(silent){silent=silent===true;
   var err=document.getElementById("formErr");
   function bad(m){err.textContent=m;err.hidden=false;err.scrollIntoView({block:"nearest"})}
   if(!edit.orderNo.trim())return bad("Enter an order no.");
@@ -1230,7 +1260,7 @@ function openPermit(id,back){
   var d;if((d=document.getElementById("delQ")))d.onclick=async function(){
     var n=linkedConts("permitId",pe.id)+Object.keys(decls).filter(function(k){return decls[k].permitId===pe.id}).length;
     if(n){var er=document.getElementById("formErr");er.textContent="This permit is linked to containers or declarations. Unlink them first.";er.hidden=false;return}
-    if(!confirm("Delete this bank permit?"))return;try{await db.doc("permits/"+pe.id).delete();closeOrBack()}catch(x){}
+    if(!window.__armOnce(this))return;try{await db.doc("permits/"+pe.id).delete();closeOrBack()}catch(x){}
   };
   var dlg=document.getElementById("dlg");if(!dlg.open)dlg.showModal();
 }
@@ -1262,7 +1292,7 @@ function openDecl(id,back){
   };
   var d;if((d=document.getElementById("delQ")))d.onclick=async function(){
     if(linkedConts("declId",de.id)){var er=document.getElementById("formErr");er.textContent="This declaration is linked to containers. Unlink them first.";er.hidden=false;return}
-    if(!confirm("Delete this declaration?"))return;try{await db.doc("declarations/"+de.id).delete();closeOrBack()}catch(x){}
+    if(!window.__armOnce(this))return;try{await db.doc("declarations/"+de.id).delete();closeOrBack()}catch(x){}
   };
   var dlg=document.getElementById("dlg");if(!dlg.open)dlg.showModal();
 }
@@ -1292,7 +1322,7 @@ function openProduct(id){
   var d;if((d=document.getElementById("delProd")))d.onclick=async function(){
     var used=orderList().some(function(o){return (o.lines||[]).some(function(l){return l.productId===pedit.id})});
     if(used){document.getElementById("formErr").textContent="This product is used in orders. Remove it from those orders first.";document.getElementById("formErr").hidden=false;return}
-    if(!confirm("Delete this product?"))return;
+    if(!window.__armOnce(this))return;
     try{await db.doc("products/"+pedit.id).delete();document.getElementById("dlg").close()}catch(er){}
   };
   document.getElementById("dlg").showModal();
@@ -1370,18 +1400,21 @@ function render(){
   f.sort(function(a,b){return (b.p.wait||0)-(a.p.wait||0)||(a.sh.piNo||"").localeCompare(b.sh.piNo||"")});
   h+='<div class="filters"><input type="search" id="fcyQ" placeholder="Search proforma, bank PO, permit, DHL no" value="'+esc(q)+'" style="min-width:260px"><span class="sub">Every saved proforma appears here. Click a row to update its steps.</span></div>';
   if(!f.length){m.innerHTML=h+'<div class="card"><p class="empty">'+(all.length?(tab==="done"?"No bank permits issued yet.":"Nothing in progress."):"No proformas yet. Create one in Order plan or Documents first.")+'</p></div>';bind();return}
-  h+='<div class="card tw"><table class="t"><thead><tr><th>Proforma</th><th class="n">Amount</th><th>Bank</th><th>Progress</th><th>Current status</th><th>Next step</th><th>Refs</th></tr></thead><tbody>'+
+  h+='<div class="card tw"><table class="t"><thead><tr><th>Proforma</th><th class="n">Amount</th><th>Bank</th><th>Progress</th><th>Current status</th><th>Next step</th><th>Refs</th><th>Actions</th></tr></thead><tbody>'+
   f.map(function(x){var r=x.r,p=x.p;return '<tr class="click" data-fcy="'+esc(x.id)+'"><td><b>'+esc(x.sh.piNo||x.id)+'</b><div class="sub">'+(x.sh.piDate?fd(x.sh.piDate):"")+(x.sh.orderPlan?" · Order "+esc(x.sh.orderPlan):"")+'</div></td>'+
     '<td class="n">USD '+nf(x.amt)+'</td><td>'+esc(r.fcyBank||"")+'</td>'+
     '<td><div style="display:flex;gap:2px;min-width:120px">'+STEPS.map(function(s,i){return '<i title="'+esc(s.t)+'" style="flex:1;height:8px;border-radius:2px;background:'+(i<p.done?(i<4?"var(--plan)":"var(--green)"):"var(--line)")+'"></i>'}).join("")+'</div><div class="sub">'+p.done+' of '+STEPS.length+' steps</div></td>'+
     '<td>'+stepChip(p)+(p.last&&!p.complete?'<div class="sub">since '+fd(p.last)+'</div>':'')+'</td>'+
     '<td>'+(p.next?esc(p.next.t)+'<br>'+waitChip(p):'<span class="sub">Done</span>')+'</td>'+
-    '<td class="sub">'+[r.bankPoNo?"Bank PO "+esc(r.bankPoNo):"",r.permitNo?"Permit "+esc(r.permitNo):"",r.dhlNo&&!r.dhlDelivered?dhlLink(r.dhlNo):""].filter(Boolean).join("<br>")+'</td></tr>'}).join("")+'</tbody></table></div>';
+    '<td class="sub">'+[r.bankPoNo?"Bank PO "+esc(r.bankPoNo):"",r.permitNo?"Permit "+esc(r.permitNo):"",r.dhlNo&&!r.dhlDelivered?dhlLink(r.dhlNo):""].filter(Boolean).join("<br>")+'</td><td style="white-space:nowrap"><button type="button" class="btn mini" data-fact="edit" data-id="'+esc(x.id)+'">Edit</button>'+(recs[x.id]?' <button type="button" class="btn mini warn" data-fact="reset" data-id="'+esc(x.id)+'">Delete</button>':'')+'</td></tr>'}).join("")+'</tbody></table></div>';
   m.innerHTML=h;bind();
   function kp(v,l){return '<div class="kpi"><b>'+(typeof v==="number"?nf(v):esc(v))+'</b><span>'+l+'</span></div>'}
 }
 function bind(){
-  document.querySelectorAll("[data-fcy]").forEach(function(el){el.onclick=function(e){if(e.target.closest("a"))return;openRec(el.dataset.fcy)}});
+  document.querySelectorAll("[data-fcy]").forEach(function(el){el.onclick=function(e){if(e.target.closest("a,button"))return;openRec(el.dataset.fcy)}});
+  document.querySelectorAll("#fcyApp [data-fact]").forEach(function(b){b.onclick=function(ev){ev.stopPropagation();var id=b.dataset.id;
+    if(b.dataset.fact==="edit")return openRec(id);
+    if(window.__armOnce(b))resetRec(id)}});
   var s=$("fcyQ");if(s)s.oninput=function(){q=this.value;var pos=this.selectionStart;render();var n=$("fcyQ");n.focus();n.setSelectionRange(pos,pos)};
 }
 
@@ -1417,7 +1450,7 @@ function draw(){
     '</fieldset>';
   });
   h+='<label class="f">Notes<textarea data-fk="notes" rows="2" style="border:1px solid var(--line);background:var(--bg);border-radius:5px;padding:6px 8px">'+esc(ed.notes||"")+'</textarea></label><p class="err" id="fcyErr" hidden></p></div>'+
-  '<div class="dlg-f"><span class="grow"></span><button type="button" class="btn" id="fcyCancel">Cancel</button><button type="button" class="btn primary" id="fcySave">Save</button></div>'+
+  '<div class="dlg-f">'+(recs[edId]?'<button type="button" class="btn warn" id="fcyDel">Delete workflow</button>':'')+'<span class="grow"></span><button type="button" class="btn" id="fcyCancel">Cancel</button><button type="button" class="btn primary" id="fcySave">Save</button></div>'+
   '<datalist id="fcyBanks">'+BANKS.map(function(b){return '<option value="'+esc(b)+'">'}).join("")+'</datalist>';
   var form=$("fcyForm"),sc=form.querySelector(".dlg-b"),top=sc?sc.scrollTop:0;
   form.innerHTML=h;var ns=form.querySelector(".dlg-b");if(ns)ns.scrollTop=top;
@@ -1429,6 +1462,11 @@ function draw(){
   form.querySelectorAll("[data-opendoc]").forEach(function(b){b.onclick=function(){$("fcyDlg").close();window.__switchApp("docs");if(window.__docs&&window.__docs.open)window.__docs.open(edId,b.dataset.opendoc)}});
   $("fcyX").onclick=$("fcyCancel").onclick=function(){$("fcyDlg").close()};
   $("fcySave").onclick=save;
+  if($("fcyDel"))$("fcyDel").onclick=function(){if(window.__armOnce(this))resetRec(edId)};
+}
+async function resetRec(id){
+  if(!db)return setStatus("Saving is not available in this view","err");
+  try{await db.doc("fcy/"+id).delete();if($("fcyDlg").open)$("fcyDlg").close();setStatus("FCY workflow deleted for "+((ships[id]||{}).piNo||id)+". Any bank permit it created is kept in Permits.","ok")}catch(x){setStatus("Could not delete. Try again.","err")}
 }
 async function save(){
   var err=$("fcyErr");function bad(m){err.textContent=m;err.hidden=false;err.scrollIntoView({block:"nearest"})}
@@ -1535,23 +1573,31 @@ function render(){
   h+='<div class="filters"><input type="search" id="declQ" placeholder="Search declaration, permit, invoice, bank" value="'+esc(q)+'" style="min-width:260px"><span class="sub">'+num(cfg.days)+' days from bank permit approval · <a href="#" id="dRule">change</a></span>'+
     (canBatch?'<span class="grow"></span><span class="sub">'+nsel+' selected</span><button class="btn primary" id="batchSub"'+(nsel?"":" disabled")+'>Mark selected as submitted</button>':'')+'</div>';
   if(!f.length){m.innerHTML=h+'<div class="card"><p class="empty">'+(all.length?(tab==="delinquent"?"No delinquent declarations.":tab==="due"?"Nothing due soon.":tab==="submitted"?"Nothing submitted yet.":"Everything is submitted."):"No declarations yet. Click \u201cAdd declaration\u201d.")+'</p></div>';bind();return}
-  h+='<div class="card tw"><table class="t"><thead><tr>'+(canBatch?'<th><input type="checkbox" id="selAll" aria-label="Select all"'+(nsel&&nsel===f.length?" checked":"")+'></th>':'')+'<th>Declaration</th><th>Bank permit</th><th>Permit approved</th><th>Commercial invoice</th><th>Bank</th><th>Deadline</th><th>Days remaining</th><th>Status</th></tr></thead><tbody>'+
+  h+='<div class="card tw"><table class="t"><thead><tr>'+(canBatch?'<th><input type="checkbox" id="selAll" aria-label="Select all"'+(nsel&&nsel===f.length?" checked":"")+'></th>':'')+'<th>Declaration</th><th>Bank permit</th><th>Permit approved</th><th>Commercial invoice</th><th>Bank</th><th>Deadline</th><th>Days remaining</th><th>Status</th><th>Actions</th></tr></thead><tbody>'+
   f.map(function(x){var d=x.d,i=x.i;return '<tr class="click" data-d="'+esc(x.id)+'">'+(canBatch?'<td><input type="checkbox" data-sel="'+esc(x.id)+'"'+(sel[x.id]?" checked":"")+' aria-label="Select '+esc(d.declNo)+'"></td>':'')+
     '<td><b>'+esc(d.declNo||"—")+'</b>'+(i.missing.length&&i.state!=="cancelled"?'<div class="sub" style="color:var(--amber)">Missing: '+esc(i.missing.join(", "))+'</div>':'')+'</td>'+
     '<td>'+(i.pm.permitNo?esc(i.pm.permitNo):'<span class="sub">—</span>')+'</td><td>'+(i.permitDate?fd(i.permitDate):'<span class="sub">—</span>')+'</td>'+
     '<td>'+(d.ciNo?esc(d.ciNo):'<span class="sub">—</span>')+'</td><td>'+esc(d.bankName||i.pm.bank||"")+'</td>'+
-    '<td>'+(i.deadline?fd(i.deadline):'<span class="sub">—</span>')+(i.submitted?'<div class="sub">submitted '+fd(i.submitted)+'</div>':'')+'</td><td>'+daysCell(i)+'</td><td>'+chip(i.state)+'</td></tr>'}).join("")+'</tbody></table></div>';
+    '<td>'+(i.deadline?fd(i.deadline):'<span class="sub">—</span>')+(i.submitted?'<div class="sub">submitted '+fd(i.submitted)+'</div>':'')+'</td><td>'+daysCell(i)+'</td><td>'+chip(i.state)+'</td><td style="white-space:nowrap"><button type="button" class="btn mini" data-dact="edit" data-id="'+esc(x.id)+'">Edit</button> <button type="button" class="btn mini warn" data-dact="del" data-id="'+esc(x.id)+'">Delete</button></td></tr>'}).join("")+'</tbody></table></div>';
   m.innerHTML=h;bind();
   function kp(v,l,a){return '<div class="kpi'+(a?' alert':'')+'"><b>'+nf(v)+'</b><span>'+l+'</span></div>'}
 }
 function bind(){
-  document.querySelectorAll("#declApp [data-d]").forEach(function(el){el.onclick=function(e){if(e.target.closest("input"))return;openD(el.dataset.d)}});
+  document.querySelectorAll("#declApp [data-d]").forEach(function(el){el.onclick=function(e){if(e.target.closest("input,button"))return;openD(el.dataset.d)}});
   document.querySelectorAll("#declApp [data-sel]").forEach(function(el){el.onchange=function(){if(el.checked)sel[el.dataset.sel]=1;else delete sel[el.dataset.sel];render()}});
   var e;
   if((e=$("selAll")))e.onchange=function(){var on=this.checked;document.querySelectorAll("#declApp [data-sel]").forEach(function(c){if(on)sel[c.dataset.sel]=1;else delete sel[c.dataset.sel]});render()};
   if((e=$("declQ")))e.oninput=function(){q=this.value;var p=this.selectionStart;render();var n=$("declQ");n.focus();n.setSelectionRange(p,p)};
   if((e=$("batchSub")))e.onclick=openBatch;
+  document.querySelectorAll("#declApp [data-dact]").forEach(function(b){b.onclick=function(ev){ev.stopPropagation();var id=b.dataset.id;
+    if(b.dataset.dact==="edit")return openD(id);
+    if(window.__armOnce(b))delD(id)}});
   if((e=$("dRule")))e.onclick=function(ev){ev.preventDefault();openRule()};
+}
+async function delD(id){
+  if(!db)return setStatus("Saving is not available in this view","err");
+  try{for(var oid in orders){var o=orders[oid];if((o.containers||[]).some(function(c){return c.declId===id})){var b=JSON.parse(JSON.stringify(o));delete b.id;b.containers=b.containers.map(function(c){if(c.declId===id)c.declId="";return c});await db.doc("orders/"+oid).set(b)}}
+    var no=(decls[id]||{}).declNo||"";await db.doc("declarations/"+id).delete();delete sel[id];if($("declDlg").open)$("declDlg").close();setStatus("Declaration "+no+" deleted","ok")}catch(x){setStatus("Could not delete. Try again.","err")}
 }
 function dlgShow(){var d=$("declDlg");if(!d.open)d.showModal()}
 function openRule(){
@@ -1603,7 +1649,7 @@ function openD(id){
     '<label class="chk" style="margin-top:8px"><input type="checkbox" id="dCanc"'+(de.status==="Cancelled"?" checked":"")+'> Declaration cancelled</label></fieldset>'+
     (cs.length?'<p class="note">Linked containers: '+cs.map(function(x){return esc((x.o.orderNo||"")+" "+(x.c.containerNo||"no number"))}).join(", ")+'</p>':'')+
     '<p class="err" id="dErr" hidden></p></div>'+
-    '<div class="dlg-f"><span class="grow"></span><button type="button" class="btn" id="dCancel">Cancel</button><button type="button" class="btn primary" id="dSave">Save</button></div>'+
+    '<div class="dlg-f">'+(id?'<button type="button" class="btn warn" id="dDel">Delete declaration</button>':'')+'<span class="grow"></span><button type="button" class="btn" id="dCancel">Cancel</button><button type="button" class="btn primary" id="dSave">Save</button></div>'+
     '<datalist id="declCis">'+Object.keys(cis).map(function(n){return '<option value="'+esc(n)+'">'}).join("")+'</datalist><datalist id="declBanks">'+BANKS.map(function(b){return '<option value="'+esc(b)+'">'}).join("")+'</datalist>';
     f.querySelectorAll("[data-e]").forEach(function(el){
       var ev=el.tagName==="SELECT"||el.type==="date"?"change":"input";
@@ -1614,7 +1660,7 @@ function openD(id){
         if(el.dataset.e==="permitId"&&!de.bankName&&permits[el.value])de.bankName=permits[el.value].bank||"";
         if(el.dataset.e==="ciNo"&&cis[el.value]&&!de.bankName)de.bankName=cis[el.value].bank;
         if(ev==="change")draw()});
-      if(ev==="input")el.addEventListener("change",function(){if(el.dataset.e==="ciNo")draw()});
+      if(ev==="input"&&el.dataset.e==="ciNo")el.addEventListener("change",function(){var bn=f.querySelector('[data-e="bankName"]');if(bn&&!bn.value&&de.bankName)bn.value=de.bankName});
     });
     var e;
     if((e=$("npNo")))e.oninput=function(){np.no=this.value};
@@ -1622,6 +1668,7 @@ function openD(id){
     $("dCanc").onchange=function(){de.status=this.checked?"Cancelled":"Cleared"};
     $("dX").onclick=$("dCancel").onclick=function(){$("declDlg").close()};
     $("dSave").onclick=save;
+    if($("dDel"))$("dDel").onclick=function(){if(window.__armOnce(this))delD(id)};
   }
   async function save(){
     var err=$("dErr");function bad(m){err.textContent=m;err.hidden=false;err.scrollIntoView({block:"nearest"})}
@@ -1679,6 +1726,10 @@ if(window.claude&&window.claude.use){
     window.scrollTo(0,0);
   }
   window.__switchApp=sw;
+  function arm(btn){btn.dataset.armed="1";btn._txt=btn.textContent;btn.textContent="Click again to delete";btn.style.background="#A32D2D";btn.style.color="#fff";btn.style.borderColor="#A32D2D";
+    btn._t=setTimeout(function(){disarm(btn)},4000)}
+  function disarm(btn){clearTimeout(btn._t);btn.dataset.armed="";if(btn._txt)btn.textContent=btn._txt;btn.style.background="";btn.style.color="";btn.style.borderColor=""}
+  window.__armOnce=function(btn){if(btn&&btn.dataset.armed==="1"){disarm(btn);return true}if(btn)arm(btn);return false};
   document.querySelectorAll(".appsw [data-app]").forEach(function(b){b.onclick=function(){sw(b.dataset.app)}});
   var m="plan";try{m=localStorage.getItem("baraka-app")||"plan"}catch(e){}
   sw(m);
