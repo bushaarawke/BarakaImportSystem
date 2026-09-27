@@ -51,4 +51,4 @@ On claude.ai, access control comes from Claude accounts. Elsewhere, add a login 
 
 ## Moving existing data
 
-Ask Claude, in a conversation, to export all collections from the published artifact to JSON files, then import them into the new database, keeping the same document ids so the links between collections still work.
+Download a backup file from the **Backup** button (see [backup.md](backup.md)). It contains every collection with its document ids. Import it into the new database keeping the same ids, so the links between collections still work. The Firebase version includes an import tool.

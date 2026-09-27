@@ -2,6 +2,8 @@
 
 ## Order plan
 
+- New orders get the next number in the series automatically (0001, 0002…, or following an existing prefix such as OP-2026-0015). A number that is already used is refused.
+- Container counts are kept exactly as entered, including fractions.
 - An order moves through: Planned, Booked, COC issued, Loaded, At Djibouti, Arrived Ethiopia. The status is derived from the dates entered.
 - Containers cannot be marked as loaded until the COC is issued.
 - Expected dates, when left empty: loading + 30 days to Djibouti, then + 7 days to Ethiopia (editable in Settings).
@@ -37,3 +39,8 @@ Waiting time is shown grey up to 14 days, amber after 14, red after 30.
 - Required: declaration no, bank permit, commercial invoice no, bank name.
 - Deadline = bank permit approval date + 180 days. The bank permit, commercial invoice and declaration must be submitted by then.
 - Status: Pending (more than 30 days left), Due soon (30 days or less), Delinquent (deadline passed, not submitted), Submitted (on time or late).
+
+## Deleting
+
+- Deleting takes two clicks. Deleting a proforma unlinks its containers and removes its FCY workflow; deleting a declaration unlinks it from its containers.
+- A product used in an order, or a bank permit still linked to containers or declarations, cannot be deleted until it is unlinked.

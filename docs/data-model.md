@@ -60,6 +60,7 @@ A step counts as done when its date field is filled.
 | `settings/banks` | Map of bank name to saved branch address |
 | `settings/timing` | `djbDays, ethDays, cocLead, bookLead` |
 | `settings/delinquency` | `days` (default 180), `warnDays` (default 30) |
+| `settings/backup` | `lastAt` (time of the last backup download) |
 
 Not used by the current version: `vendors`, `settings/nbe`.
 
